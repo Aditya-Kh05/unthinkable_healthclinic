@@ -1,0 +1,109 @@
+# Healthcare Appointment & Follow-up Manager — Cursor Rules
+
+## Project Overview
+A full-stack healthcare appointment platform with separate portals for Patients, Doctors, and Admins. Features include AI-powered symptom analysis, Google Calendar integration, email notifications, and medication reminders.
+
+## Tech Stack
+- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, ShadCN UI
+- **Backend**: Node.js, Express.js, TypeScript
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT with role-based access control (Patient / Doctor / Admin)
+- **LLM**: OpenAI API (GPT-4o-mini) for pre-visit and post-visit summaries
+- **Email**: Nodemailer with SendGrid transport
+- **Calendar**: Google Calendar API with OAuth 2.0
+- **Background Jobs**: BullMQ with Redis
+- **Deployment**: Vercel (frontend), Render/Railway (backend + DB)
+
+## Project Structure
+```
+healthcare-appointment-manager/
+├── client/                  # Next.js frontend
+│   ├── app/                 # App Router pages
+│   │   ├── (auth)/          # Auth pages (login, register)
+│   │   ├── patient/         # Patient portal
+│   │   ├── doctor/          # Doctor portal
+│   │   └── admin/           # Admin portal
+│   ├── components/          # Reusable UI components
+│   ├── lib/                 # Utilities, API client, hooks
+│   └── types/               # TypeScript interfaces
+├── server/                  # Express.js backend
+│   ├── src/
+│   │   ├── controllers/     # Route handlers
+│   │   ├── middleware/       # Auth, validation, error handling
+│   │   ├── models/          # Prisma schema & DB queries
+│   │   ├── routes/          # API route definitions
+│   │   ├── services/        # Business logic (LLM, email, calendar)
+│   │   ├── jobs/            # Background job processors
+│   │   ├── utils/           # Helper functions
+│   │   └── config/          # Environment config
+│   └── prisma/              # Prisma schema & migrations
+├── docs/                    # Project documentation
+└── README.md
+```
+
+## Coding Conventions
+
+### General
+- Use TypeScript strict mode everywhere
+- Use `async/await` over raw Promises
+- Never use `any` type — define proper interfaces
+- Use named exports, not default exports
+- Keep files under 300 lines; refactor when larger
+- All environment variables must be accessed through a central config module
+
+### Naming
+- **Files**: kebab-case (`appointment-controller.ts`)
+- **Components**: PascalCase (`AppointmentCard.tsx`)
+- **Variables/Functions**: camelCase (`getAvailableSlots`)
+- **Constants**: UPPER_SNAKE_CASE (`MAX_RETRY_ATTEMPTS`)
+- **Database tables**: snake_case (`appointment_slots`)
+- **API routes**: kebab-case (`/api/v1/appointments/available-slots`)
+
+### Backend
+- All API responses follow: `{ success: boolean, data?: T, error?: string }`
+- Use middleware for auth, input validation (Zod), and error handling
+- Controllers should be thin — push logic into service layer
+- All database operations go through Prisma client
+- Handle LLM failures gracefully — never let the system crash
+- Use transactions for critical operations (booking, cancellation)
+- Log all errors with structured logging (Winston)
+
+### Frontend
+- Use Server Components by default, Client Components only when needed
+- Colocate styles and logic with components
+- Use React Query (TanStack Query) for server state
+- Use Zustand for minimal client state
+- Form validation with React Hook Form + Zod
+- Show loading states and error boundaries everywhere
+
+### API Design
+- RESTful conventions: `GET /api/v1/resource`, `POST /api/v1/resource`
+- All endpoints prefixed with `/api/v1/`
+- Use proper HTTP status codes (200, 201, 400, 401, 403, 404, 409, 500)
+- Pagination: `?page=1&limit=20`
+- Auth via `Authorization: Bearer <token>` header
+
+### Database
+- Always use migrations — never modify the DB manually
+- Index frequently queried columns
+- Use soft deletes (`deleted_at` timestamp) for critical records
+- Store LLM outputs in dedicated columns with timestamps
+
+### Error Handling
+- All async route handlers wrapped in try-catch
+- Centralized error handling middleware
+- Custom error classes (AppError, ValidationError, ConflictError)
+- LLM failures return a fallback response, never propagate to the user as a crash
+
+### Testing
+- Write integration tests for critical flows (booking, cancellation, leave)
+- Test concurrent booking scenarios
+- Mock external services (LLM, Email, Calendar) in tests
+
+## Key Business Rules
+1. **No double-booking**: Use database-level locks or optimistic concurrency
+2. **Slot hold mechanism**: Temporarily hold a slot while patient fills symptom form (5-min TTL)
+3. **Leave conflicts**: When doctor marked on leave, auto-notify all affected patients
+4. **Medication reminders**: Schedule based on prescription frequency using background jobs
+5. **Email retries**: Failed emails go to a retry queue with exponential backoff
+6. **Calendar sync**: Always create/update/delete Google Calendar events on booking state changes

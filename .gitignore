@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+coverage/
+*.tgz
+
+# Prisma
+server/prisma/*.db
+server/prisma/migrations/
+
+# Next.js
+client/.next/
+client/out/
+client/node_modules/
+
+# OS
+desktop.ini

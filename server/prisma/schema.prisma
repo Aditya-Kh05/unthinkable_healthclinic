@@ -1,0 +1,288 @@
+// ──────────────────────────────────────────────────────
+// Prisma Schema — Healthcare Appointment Manager
+// ──────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  SLOT_HELD
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  CANCELLED_BY_LEAVE
+}
+
+enum LlmStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ── Users ────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  name         String
+  phone        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  doctor              Doctor?
+  appointments        Appointment[]       @relation("PatientAppointments")
+  notifications       Notification[]
+  calendarEvents      CalendarEvent[]
+  medicationReminders MedicationReminder[]
+  googleToken         GoogleToken?
+  slotHolds           SlotHold[]
+
+  @@map("users")
+}
+
+// ── Doctor ───────────────────────────────────────────
+
+model Doctor {
+  id              String  @id @default(uuid())
+  userId          String  @unique @map("user_id")
+  specialisation  String
+  slotDurationMin Int     @default(30) @map("slot_duration_min")
+  isActive        Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules    DoctorSchedule[]
+  leaves       DoctorLeave[]
+  appointments Appointment[]
+  slotHolds    SlotHold[]
+
+  @@map("doctors")
+}
+
+// ── Doctor Schedule (working hours per day) ──────────
+
+model DoctorSchedule {
+  id        String @id @default(uuid())
+  doctorId  String @map("doctor_id")
+  dayOfWeek Int    @map("day_of_week") // 0 = Sunday, 6 = Saturday
+  startTime String @map("start_time")  // "09:00"
+  endTime   String @map("end_time")    // "17:00"
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, dayOfWeek])
+  @@map("doctor_schedules")
+}
+
+// ── Doctor Leave ─────────────────────────────────────
+
+model DoctorLeave {
+  id        String   @id @default(uuid())
+  doctorId  String   @map("doctor_id")
+  leaveDate DateTime @map("leave_date")
+  reason    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, leaveDate])
+  @@map("doctor_leaves")
+}
+
+// ── Appointments ─────────────────────────────────────
+
+model Appointment {
+  id        String            @id @default(uuid())
+  patientId String            @map("patient_id")
+  doctorId  String            @map("doctor_id")
+  date      DateTime          // Date of appointment
+  startTime String            @map("start_time") // "10:00"
+  endTime   String            @map("end_time")   // "10:30"
+  status    AppointmentStatus @default(CONFIRMED)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patient          User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor           Doctor            @relation(fields: [doctorId], references: [id])
+  preVisitSummary  PreVisitSummary?
+  postVisitSummary PostVisitSummary?
+  prescriptions    Prescription[]
+  calendarEvents   CalendarEvent[]
+
+  // Prevent double-booking: unique on doctor + date + time for active appointments
+  @@unique([doctorId, date, startTime])
+  @@index([patientId])
+  @@index([doctorId, date])
+  @@map("appointments")
+}
+
+// ── Slot Holds (temporary reservation) ───────────────
+
+model SlotHold {
+  id        String   @id @default(uuid())
+  doctorId  String   @map("doctor_id")
+  patientId String   @map("patient_id")
+  date      DateTime
+  startTime String   @map("start_time")
+  heldAt    DateTime @default(now()) @map("held_at")
+  expiresAt DateTime @map("expires_at")
+
+  doctor  Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient User   @relation(fields: [patientId], references: [id])
+
+  @@unique([doctorId, date, startTime])
+  @@map("slot_holds")
+}
+
+// ── Pre-Visit Summary (LLM-generated) ───────────────
+
+model PreVisitSummary {
+  id                 String    @id @default(uuid())
+  appointmentId      String    @unique @map("appointment_id")
+  symptomsRaw        String    @map("symptoms_raw")
+  urgency            String?   // Low / Medium / High
+  chiefComplaint     String?   @map("chief_complaint")
+  suggestedQuestions String[]  @map("suggested_questions")
+  llmStatus          LlmStatus @default(PENDING) @map("llm_status")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@map("pre_visit_summaries")
+}
+
+// ── Post-Visit Summary (LLM-generated) ──────────────
+
+model PostVisitSummary {
+  id             String    @id @default(uuid())
+  appointmentId  String    @unique @map("appointment_id")
+  clinicalNotes  String    @map("clinical_notes")
+  patientSummary String?   @map("patient_summary")
+  llmStatus      LlmStatus @default(PENDING) @map("llm_status")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@map("post_visit_summaries")
+}
+
+// ── Prescriptions ────────────────────────────────────
+
+model Prescription {
+  id             String @id @default(uuid())
+  appointmentId  String @map("appointment_id")
+  medicationName String @map("medication_name")
+  dosage         String
+  frequency      String // "twice daily", "once daily", etc.
+  durationDays   Int    @map("duration_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  appointment Appointment          @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  reminders   MedicationReminder[]
+
+  @@map("prescriptions")
+}
+
+// ── Medication Reminders ─────────────────────────────
+
+model MedicationReminder {
+  id             String             @id @default(uuid())
+  prescriptionId String             @map("prescription_id")
+  patientId      String             @map("patient_id")
+  scheduledAt    DateTime           @map("scheduled_at")
+  sentAt         DateTime?          @map("sent_at")
+  status         NotificationStatus @default(PENDING)
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  patient      User         @relation(fields: [patientId], references: [id])
+
+  @@index([status, scheduledAt])
+  @@map("medication_reminders")
+}
+
+// ── Notifications Log ────────────────────────────────
+
+model Notification {
+  id         String             @id @default(uuid())
+  userId     String             @map("user_id")
+  type       String             // BOOKING_CONFIRMATION, REMINDER, CANCELLATION, LEAVE_NOTIFICATION
+  channel    String             @default("EMAIL")
+  status     NotificationStatus @default(PENDING)
+  retryCount Int                @default(0) @map("retry_count")
+  metadata   Json?              // Flexible payload for email content
+  sentAt     DateTime?          @map("sent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@map("notifications")
+}
+
+// ── Calendar Events ──────────────────────────────────
+
+model CalendarEvent {
+  id            String @id @default(uuid())
+  appointmentId String @map("appointment_id")
+  userId        String @map("user_id")
+  googleEventId String @map("google_event_id")
+  status        String @default("active") // active, deleted
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@unique([appointmentId, userId])
+  @@map("calendar_events")
+}
+
+// ── Google OAuth Tokens ──────────────────────────────
+
+model GoogleToken {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  accessToken  String   @map("access_token")
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_tokens")
+}
