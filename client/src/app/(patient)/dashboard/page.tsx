@@ -22,7 +22,7 @@ export default function PatientDashboard() {
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/appointments/${id}`);
+      await api.put(`/appointments/${id}/cancel`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-appointments'] });
