@@ -69,7 +69,7 @@ function BookingForm() {
           <label className="text-sm font-medium text-slate-700">Symptoms</label>
           <textarea
             {...register('symptoms')}
-            className="w-full h-32 rounded-lg border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-shadow"
+            className="w-full h-32 rounded-lg border border-slate-200 p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-shadow"
             placeholder="Describe what you are experiencing, how long it has been going on, etc."
           ></textarea>
           {errors.symptoms && (
