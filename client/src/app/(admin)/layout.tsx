@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/store/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 
 export default function AdminLayout({
@@ -15,15 +15,23 @@ export default function AdminLayout({
   const router = useRouter();
   const { user, logout } = useAuth();
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    } else if (user.role !== 'ADMIN') {
-      router.push('/login');
-    }
-  }, [user, router]);
+  const [mounted, setMounted] = useState(false);
 
-  if (!user || user.role !== 'ADMIN') return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      if (!user) {
+        router.push('/login');
+      } else if (user.role !== 'ADMIN') {
+        router.push('/login');
+      }
+    }
+  }, [user, router, mounted]);
+
+  if (!mounted || !user || user.role !== 'ADMIN') return null;
 
   const handleLogout = () => {
     logout();

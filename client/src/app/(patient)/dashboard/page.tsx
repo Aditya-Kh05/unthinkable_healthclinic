@@ -87,7 +87,7 @@ export default function PatientDashboard() {
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="font-semibold text-slate-900 text-lg">
-                      Dr. {appt.doctor.user.name}
+                      Dr. {appt.doctor.name}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {appt.doctor.specialisation}
@@ -143,7 +143,7 @@ export default function PatientDashboard() {
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="font-semibold text-slate-900">
-                      Dr. {appt.doctor.user.name}
+                      Dr. {appt.doctor.name}
                     </span>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       appt.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
