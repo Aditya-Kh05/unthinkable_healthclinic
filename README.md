@@ -4,6 +4,11 @@ HealthClinic is a full-stack, AI-driven healthcare appointment management system
 
 It features three distinct portals (Patient, Doctor, Admin) and utilizes advanced capabilities like Google Gemini AI for pre-visit and post-visit medical summaries, BullMQ for background job processing, and Google Calendar OAuth integration for seamless scheduling.
 
+## 🌐 Live Deployments
+- **Frontend (Vercel):** [https://unthinkable-healthclinic.vercel.app](https://unthinkable-healthclinic.vercel.app)
+- **Backend API (Render):** [https://unthinkable-healthclinic.onrender.com](https://unthinkable-healthclinic.onrender.com)
+- **Database:** Neon Serverless PostgreSQL
+- **Redis Queue:** Upstash Redis
 ## 🚀 Key Features
 
 ### 👤 Patient Portal
